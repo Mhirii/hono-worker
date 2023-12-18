@@ -58,9 +58,9 @@ app.post("/signup", async (c) => {
 });
 
 app.use(
-	"/api3/*",
+	"*",
 	cors({
-		origin: ["*"],
+		origin: ["*", "https://vue-workers-bib.pages.dev"],
 	}),
 );
 export default app;
