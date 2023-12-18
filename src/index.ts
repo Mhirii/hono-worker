@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { Context, Hono } from "hono";
 import { env } from "hono/adapter";
-import { Login } from "./handleLogin";
+import { cors } from "hono/cors";
 import { AuthDto } from "./types/authDto";
 
 const app = new Hono();
@@ -31,6 +31,7 @@ app.post("/login", async (c) => {
 	return new Response(JSON.stringify(data), {
 		headers: {
 			"Content-Type": "application/json",
+			"Access-Control-Allow-Origin": "*",
 		},
 	});
 });
@@ -56,4 +57,10 @@ app.post("/signup", async (c) => {
 	});
 });
 
+app.use(
+	"/api3/*",
+	cors({
+		origin: ["*"],
+	}),
+);
 export default app;
