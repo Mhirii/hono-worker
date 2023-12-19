@@ -57,11 +57,10 @@ app.post("/signup", async (c) => {
 
 	if (data.user) {
 		if (data.user.email) {
-			const supabase_data = await insert_user(
-				data.user.id,
-				data.user.email,
-				supabase,
-			);
+			const { data: response, error } = await supabase.from("users").insert({
+				id: data.user.id,
+				email: data.user.email,
+			});
 		}
 	}
 	return new Response(JSON.stringify(data), {
@@ -71,23 +70,6 @@ app.post("/signup", async (c) => {
 		},
 	});
 });
-
-//TODO: remove explicit any
-// biome-ignore lint/suspicious/noExplicitAny: <explanation>
-const insert_user = async (email: string, uuid: string, supabase: any) => {
-	const { data, error } = await supabase.rpc("insert_user", {
-		uuid: uuid,
-		email: email,
-	});
-	if (error) {
-		return new Response(JSON.stringify(error), {
-			headers: {
-				"Content-Type": "application/json",
-			},
-		});
-	}
-	return data;
-};
 
 app.use(
 	"*",
