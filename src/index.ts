@@ -48,11 +48,18 @@ app.post("/signup", async (c) => {
 		password: body.password,
 	});
 
-	if (error) throw error;
+	if (error) 
+		return new Response(JSON.stringify(error), {
+			headers: {
+				"Content-Type": "application/json",
+			},
+		});
+
 
 	return new Response(JSON.stringify(data), {
 		headers: {
 			"Content-Type": "application/json",
+			"Access-Control-Allow-Origin": "*",
 		},
 	});
 });
@@ -60,7 +67,7 @@ app.post("/signup", async (c) => {
 app.use(
 	"*",
 	cors({
-		origin: ["*", "https://vue-workers-bib.pages.dev"],
+		origin: ["*", "https://vue-workers-bib.pages.dev", "41.228.12.170"],
 	}),
 );
 export default app;
