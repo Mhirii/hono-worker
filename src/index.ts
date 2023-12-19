@@ -48,14 +48,22 @@ app.post("/signup", async (c) => {
 		password: body.password,
 	});
 
-	if (error) 
+	if (error)
 		return new Response(JSON.stringify(error), {
 			headers: {
 				"Content-Type": "application/json",
 			},
 		});
 
-
+	if (data.user) {
+		if (data.user.email) {
+			const supabase_data = await insert_user(
+				data.user.id,
+				data.user.email,
+				supabase,
+			);
+		}
+	}
 	return new Response(JSON.stringify(data), {
 		headers: {
 			"Content-Type": "application/json",
@@ -63,6 +71,23 @@ app.post("/signup", async (c) => {
 		},
 	});
 });
+
+//TODO: remove explicit any
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
+const insert_user = async (email: string, uuid: string, supabase: any) => {
+	const { data, error } = await supabase.rpc("insert_user", {
+		uuid: uuid,
+		email: email,
+	});
+	if (error) {
+		return new Response(JSON.stringify(error), {
+			headers: {
+				"Content-Type": "application/json",
+			},
+		});
+	}
+	return data;
+};
 
 app.use(
 	"*",
