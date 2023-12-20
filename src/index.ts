@@ -56,13 +56,45 @@ app.post("/signup", async (c) => {
 		});
 
 	if (data.user) {
-		if (data.user.email) {
-			const { data: response, error } = await supabase.from("users").insert({
-				id: data.user.id,
-				email: data.user.email,
-			});
+		const { data: workspace_data, error: workspace_error } = await supabase
+			.from("workspaces")
+			.insert({
+				created_at: new Date(),
+				title: "inbox",
+				owned_by: data.user.id,
+				isSharable: false,
+			})
+			.select();
+		if (workspace_error) {
+			console.log(workspace_error);
+		}
+		if (workspace_data) {
+			const { data: boards_response, error: boards_error } = await supabase
+				.from("boards")
+				.insert([
+					{
+						created_at: new Date(),
+						title: "Planning",
+						workspace: workspace_data[0].id,
+					},
+					{
+						created_at: new Date(),
+						title: "Progress",
+						workspace: workspace_data[0].id,
+					},
+					{
+						created_at: new Date(),
+						title: "Done",
+						workspace: workspace_data[0].id,
+					},
+				])
+				.select();
+			if (boards_error) {
+				console.log(boards_error);
+			}
 		}
 	}
+
 	return new Response(JSON.stringify(data), {
 		headers: {
 			"Content-Type": "application/json",
