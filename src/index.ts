@@ -4,7 +4,9 @@ import { env } from "hono/adapter";
 import { cors } from "hono/cors";
 import login from "./login";
 import signup from "./signup";
+import tasks from "./tasks";
 import { AuthDto } from "./types/authDto";
+import user from "./user";
 
 const app = new Hono();
 
@@ -12,6 +14,8 @@ app.get("/", (c) => c.text("Hello Hono!"));
 
 app.route("/login", login);
 app.route("/signup", signup);
+app.route("/user", user);
+app.route("/tasks", tasks);
 
 app.use(
 	"*",
