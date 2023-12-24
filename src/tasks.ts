@@ -1,68 +1,65 @@
-import { createClient } from "@supabase/supabase-js";
-import { env } from "hono/adapter";
-
-import { Hono } from "hono";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseAuthClient } from "@supabase/supabase-js/dist/module/lib/SupabaseAuthClient";
+import { Context, Hono } from "hono";
 import { boardDto } from "./types/boardDto";
-import { taskDto } from "./types/taskDto";
+import { getSupabaseClient, handle_error, headers } from "./utils";
 
 const app = new Hono();
 
 type request_body = {
 	id: string;
-	board: number;
+	board_id: number;
 	title: string;
 };
 
 app.get("/", (c) => c.text("Hello Hono!"));
 
+/* ─────────────────────────── Creates a new task ─────────────────────────── */
 app.post("/", async (c) => {
-	const { SUPABASE_URL } = env<{ SUPABASE_URL: string }>(c);
-	const { SUPABASE_KEY } = env<{ SUPABASE_KEY: string }>(c);
-	const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
+	const supabase = getSupabaseClient(c);
 	const body: request_body = await c.req.json();
 
-	const { data: board_data, error: board_error } = await supabase
-		.from("boards")
-		.select()
-		.eq("id", body.board);
-	console.log(board_data);
-	if (board_error) {
-		return handle_error(board_error);
-	}
-
-	const { data, error } = await supabase
+	// add the task to the tasks Table
+	const { data: task_data, error } = await supabase
 		.from("tasks")
 		.insert({
 			title: body.title,
-			board: body.board,
+			board: body.board_id,
 		})
 		.select();
 	if (error) {
 		return handle_error(error);
 	}
 
+	// add the task to the tasks[] column in boards Table
+	const { data: board_data, error: board_error } = await supabase
+		.from("boards")
+		.select()
+		.eq("id", body.board_id);
+	if (board_error) {
+		return handle_error(board_error);
+	}
+	const board: boardDto = board_data[0];
 	const { data: update_data, error: update_error } = await supabase
 		.from("boards")
 		.update({
-			tasks: board_data[0].tasks.push(data[0].id),
-		});
+			tasks: board.tasks
+				? [...board.tasks, task_data[0].id]
+				: [task_data[0].id],
+		})
+		.eq("id", body.board_id);
 	if (update_error) {
 		return handle_error(update_error);
 	}
 
-	return new Response(JSON.stringify(data), {
-		headers: {
-			"Content-Type": "application/json",
-			"Access-Control-Allow-Origin": "*",
-		},
+	return new Response(JSON.stringify(task_data), {
+		headers: headers,
 	});
 });
 
+/* ───────── Retrieves all tasks associated with the specified board ──────── */
 app.get("/board/:id", async (c) => {
-	const { SUPABASE_URL } = env<{ SUPABASE_URL: string }>(c);
-	const { SUPABASE_KEY } = env<{ SUPABASE_KEY: string }>(c);
-	const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+	const supabase = getSupabaseClient(c);
 
 	const board_id = c.req.param("id");
 	const { data, error } = await supabase
@@ -74,32 +71,33 @@ app.get("/board/:id", async (c) => {
 		return handle_error(error);
 	}
 
-	const get_task_by_id = async (id: number) => {
-		return await supabase.from("tasks").select().eq("id", id);
-	};
-
 	const tasks = [];
 	const task_ids: number[] = data[0].tasks;
 	for (const task_id of task_ids) {
-		const { data: task_data, error: task_error } =
-			await get_task_by_id(task_id);
-		if (task_error) {
-			return handle_error(task_error);
-		}
+		const task_data = await get_task_by_id(task_id, c);
 		tasks.push(task_data);
 	}
-	return new Response(JSON.stringify(tasks));
+	return new Response(JSON.stringify(tasks), {
+		headers: headers,
+	});
 });
 
-// biome-ignore lint/suspicious/noExplicitAny: <explanation> //TODO: remove explicit any
-const handle_error = (error: any) => {
-	console.log(error);
-	return new Response(JSON.stringify(error), {
-		headers: {
-			"Content-Type": "application/json",
-			"Access-Control-Allow-Origin": "*",
-		},
-	});
+/**
+ * Retrieves a task from the database by its ID.
+ *
+ * @param {number} id - The ID of the task to retrieve.
+ * @return {Promise<object>} - A Promise that resolves to the task data if successful, or rejects with an error if not.
+ */
+export const get_task_by_id = async (
+	id: number,
+	c: Context,
+): Promise<object> => {
+	const supabase = getSupabaseClient(c);
+	const { data, error } = await supabase.from("tasks").select().eq("id", id);
+	if (error) {
+		return handle_error(error);
+	}
+	return data;
 };
 
 export default app;
