@@ -1,7 +1,8 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import { SupabaseAuthClient } from "@supabase/supabase-js/dist/module/lib/SupabaseAuthClient";
+import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { Context, Hono } from "hono";
+import { addTaskToBoard } from "./boards";
 import { boardDto } from "./types/boardDto";
+import { taskDto } from "./types/taskDto";
 import { getSupabaseClient, handle_error, headers } from "./utils";
 
 const app = new Hono();
@@ -99,5 +100,44 @@ export const get_task_by_id = async (
 	}
 	return data;
 };
+
+/**
+ * Creates a task and adds it to the specified board.
+ *
+ * @param {SupabaseClient} supabase - The Supabase client.
+ * @param {string} title - The title of the task.
+ * @param {number} board_id - The ID of the board to add the task to.
+ * @return {Promise<{ task: taskDto | undefined; board: boardDto | undefined; error: PostgrestError | unknown | undefined }>} - A promise that resolves to an object containing the created task, the board it was added to, and any error that occurred.
+ */
+export const createTask = async (supabase: SupabaseClient, title: string, board_id: number): Promise<{ task: taskDto | undefined; board: boardDto | undefined; error: PostgrestError | unknown | undefined }> => {
+	// Insert the new task into the "tasks" table
+	const { data, error } = await supabase
+		.from("tasks")
+		.insert({
+			title: title,
+			board: board_id
+		})
+		.select()
+	if (error) {
+		console.log(error)
+		return { task: undefined, board: undefined, error }
+	}
+	const task: taskDto = data[0]
+
+	//add the task to its board
+	const { board, error: boardError } = await addTaskToBoard(supabase, board_id, task.id)
+	if (boardError) {
+		console.log(boardError)
+		return { task: undefined, board: undefined, error: boardError }
+	}
+	if (board) {
+		return {
+			task,
+			board,
+			error: undefined
+		}
+	}
+	return { task: undefined, board: undefined, error: Error("board or task does not exist") }
+}
 
 export default app;
