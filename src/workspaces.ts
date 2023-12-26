@@ -133,7 +133,7 @@ export const createWorkspace = async (supabase: SupabaseClient, title: string, u
  * @param {number} workspace_id - The ID of the workspace to retrieve.
  * @return {Promise<{ workspace: workspaceDto | undefined; error: PostgrestError | unknown | undefined }>} - A promise that resolves to an object containing the retrieved workspace and any potential error.
  */
-const getWorkspaceById = async (supabase: SupabaseClient, workspace_id: number): Promise<{ workspace: workspaceDto | undefined; error: PostgrestError | unknown | undefined }> => {
+export const getWorkspaceById = async (supabase: SupabaseClient, workspace_id: number): Promise<{ workspace: workspaceDto | undefined; error: PostgrestError | unknown | undefined }> => {
 	try {
 		const { data, error } = await supabase
 			.from("workspaces")
