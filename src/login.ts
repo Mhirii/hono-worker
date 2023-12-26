@@ -2,6 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { env } from "hono/adapter";
 import { AuthDto } from "./types/authDto";
+import { getUserById, getUserByUUID, getUserInfo } from "./user";
+import { headers } from "./utils";
 
 const app = new Hono();
 
@@ -19,17 +21,24 @@ app.post("/", async (c) => {
 
 	if (error) {
 		return new Response(JSON.stringify(error), {
-			headers: {
-				"Content-Type": "application/json",
-			},
+			headers: headers,
 		});
 	}
 
-	return new Response(JSON.stringify(data), {
-		headers: {
-			"Content-Type": "application/json",
-			"Access-Control-Allow-Origin": "*",
-		},
+	const { user: userData, error: userError } = await getUserByUUID(supabase, data.user.id)
+	if (userError) {
+		return new Response(JSON.stringify(userError), {
+			headers: headers,
+		});
+	}
+	if (!userData) {
+		return new Response(JSON.stringify("User not found"), {
+			headers: headers,
+		});
+	}
+
+	return new Response(JSON.stringify({ data: data, userData: userData }), {
+		headers: headers,
 	});
 });
 

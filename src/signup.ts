@@ -1,20 +1,11 @@
-import { SupabaseClient, createClient } from "@supabase/supabase-js";
-import { env } from "hono/adapter";
 import { AuthDto } from "./types/authDto";
 
 import { Hono } from "hono";
-import boards from "./boards";
 import { createUser } from "./user";
-import { getSupabaseClient, handle_error, headers } from "./utils";
+import { getSupabaseClient, headers } from "./utils";
 
 const app = new Hono();
 
-// for local usage will clean up later
-// TODO: cleanup
-interface userDto {
-  id: string;
-  email: string;
-}
 
 app.post("/", async (c) => {
   const supabase = getSupabaseClient(c);
@@ -30,24 +21,19 @@ app.post("/", async (c) => {
       headers: headers,
     });
 
-  try {
-    if (data.user?.id && data.user.email) {
-      const user = {
-        id: data.user.id,
-        email: data.user.email,
-      };
-      const { user: userData, error: userError } = await createUser(supabase, user.id, user.email)
-      if (userError) {
-        return new Response(JSON.stringify(userError), {
-          headers: headers,
-        });
-      }
-      return new Response(JSON.stringify({ data, userData }), {
+  if (data.user?.id && data.user.email) {
+    const user = {
+      id: data.user.id,
+      email: data.user.email,
+    };
+    const { user: userData, error: userError } = await createUser(supabase, user.id, user.email)
+    if (userError) {
+      console.log(userError)
+      return new Response(JSON.stringify(userError), {
         headers: headers,
       });
     }
-  } catch (e) {
-    return new Response(JSON.stringify(e), {
+    return new Response(JSON.stringify({ data: data, userData: userData }), {
       headers: headers,
     });
   }

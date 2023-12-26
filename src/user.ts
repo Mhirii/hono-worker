@@ -8,6 +8,11 @@ import userDto from "./types/userDto";
 import { workspaceDto } from "./types/workspaceDto";
 import { createWorkspace } from "./workspaces";
 
+interface UserResponse {
+	user: userDto | undefined
+	error: PostgrestError | undefined | unknown
+}
+
 const app = new Hono();
 
 app.post("/", async (c) => {
@@ -33,11 +38,65 @@ app.get("/", async (c) => {
 	});
 });
 
+export const getUserById = async (supabase: SupabaseClient, user_id: number): Promise<UserResponse> => {
+
+	const { data, error } = await supabase
+		.from("users")
+		.select()
+		.eq("id", user_id)
+
+	if (error) {
+		return {
+			user: undefined,
+			error
+		}
+	}
+	if (data) {
+		const user: userDto = data[0]
+		return {
+			user,
+			error: undefined
+		}
+	}
+
+	return {
+		user: undefined,
+		error: Error("No Data")
+	}
+}
+
+export const getUserByUUID = async (supabase: SupabaseClient, user_uuid: string): Promise<UserResponse> => {
+
+	const { data, error } = await supabase
+		.from("users")
+		.select()
+		.eq("uuid", user_uuid)
+
+	if (error) {
+		return {
+			user: undefined,
+			error
+		}
+	}
+	if (data) {
+		const user: userDto = data[0]
+		return {
+			user,
+			error: undefined
+		}
+	}
+
+	return {
+		user: undefined,
+		error: Error("No Data")
+	}
+}
+
 export const createUser = async (
 	supabase: SupabaseClient,
 	uuid: string,
 	email: string,
-): Promise<{ user: userDto | undefined, error: PostgrestError | undefined | unknown }> => {
+): Promise<UserResponse> => {
 	const { data, error } = await supabase
 		.from("users")
 		.insert({
@@ -51,7 +110,7 @@ export const createUser = async (
 			error
 		}
 	}
-	const user: userDto = data[0]
+	let user: userDto = data[0]
 
 	const { workspace: workspaceData, error: workspaceError } = await createWorkspace(supabase, "Inbox", user.id, false)
 	if (workspaceError) {
@@ -78,6 +137,7 @@ export const createUser = async (
 				error: updateUserError
 			}
 		}
+		user = updatedUserData[0]
 
 		const { board: planningBoard, error: planningError } = await createBoard(supabase, "Planning", workspace.id)
 		const { board: progressBoard, error: progressError } = await createBoard(supabase, "In Progress", workspace.id)
@@ -108,7 +168,6 @@ export const createUser = async (
 			error: undefined
 		}
 	}
-	console.log("Something went wrong")
 	return {
 		user: undefined,
 		error: Error("Something went wrong :(")
