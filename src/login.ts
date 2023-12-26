@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { env } from "hono/adapter";
 import { AuthDto } from "./types/authDto";
-import { getUserById, getUserByUUID, getUserInfo } from "./user";
+import { getUserByUUID } from "./user";
 import { headers } from "./utils";
 
 const app = new Hono();
