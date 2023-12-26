@@ -1,8 +1,8 @@
-export type taskDto = {
-	id: number;
+
+export type Task = {
 	title: string;
 	description?: string;
 	created_at?: Date;
 	updated_at?: Date;
-	board: number;
-};
+}
+export type taskDto = Task & { id: number; board: number };
