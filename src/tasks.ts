@@ -2,7 +2,7 @@ import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { Context, Hono } from "hono";
 import { addTaskToBoard } from "./boards";
 import { boardDto } from "./types/boardDto";
-import { taskDto } from "./types/taskDto";
+import { Task, taskDto } from "./types/taskDto";
 import { getSupabaseClient, handle_error, headers } from "./utils";
 
 const app = new Hono();
@@ -125,7 +125,7 @@ export const createTask = async (supabase: SupabaseClient, title: string, board_
 	const task: taskDto = data[0]
 
 	//add the task to its board
-	const { board, error: boardError } = await addTaskToBoard(supabase, board_id, task.id)
+	const { board, error: boardError } = await addTaskToBoard(supabase, task.id, board_id)
 	if (boardError) {
 		console.log(boardError)
 		return { task: undefined, board: undefined, error: boardError }
@@ -139,5 +139,6 @@ export const createTask = async (supabase: SupabaseClient, title: string, board_
 	}
 	return { task: undefined, board: undefined, error: Error("board or task does not exist") }
 }
+
 
 export default app;

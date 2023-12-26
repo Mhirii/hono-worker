@@ -1,8 +1,7 @@
-import { PostgrestError, PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
+import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { get_task_by_id } from "./tasks";
 import { boardDto } from "./types/boardDto";
-import { taskDto } from "./types/taskDto";
 import { workspaceDto } from "./types/workspaceDto";
 import { getSupabaseClient, handle_error, headers } from "./utils";
 import { addBoardToWorkspace } from "./workspaces";

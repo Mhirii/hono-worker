@@ -1,5 +1,5 @@
-import { PostgrestError, PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
-import { Context, Hono } from "hono";
+import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
+import { Hono } from "hono";
 import { workspaceDto } from "./types/workspaceDto";
 import { getSupabaseClient, handle_error, headers } from "./utils";
 
