@@ -1,9 +1,9 @@
 import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
-import { get_task_by_id } from "./tasks";
-import { boardDto } from "./types/boardDto";
+import { getTaskById } from "./tasks";
+import { boardDto, createBoardDto, createBoardResponse } from "./types/boardDto";
 import { workspaceDto } from "./types/workspaceDto";
-import { getSupabaseClient, handle_error, headers } from "./utils";
+import { getSupabaseClient, handle_error, headers, workspaceAuthorization } from "./utils";
 import { addBoardToWorkspace } from "./workspaces";
 
 const app = new Hono();
@@ -13,59 +13,64 @@ app.get("/", (c) => c.text("Hello Hono!"));
 /* ─────────────────────────── creates a new board ────────────────────────── */
 app.post("/", async (c) => {
 	const supabase = getSupabaseClient(c);
-	const body = await c.req.json();
+	const body: createBoardDto = await c.req.json();
 
-	const { data, error } = await supabase.from("boards").insert({
-		title: body.title,
-		owned_by: body.id,
-		isSharable: true,
-	});
-
-	if (error) {
-		return handle_error(error);
+	const { isAuthorized, authorizationError } = await workspaceAuthorization(supabase, body.user_id, body.workspace_id)
+	if (authorizationError || !isAuthorized) {
+		return new Response(JSON.stringify({ error: authorizationError ? authorizationError?.message : "Not Authorized" }), {
+			headers: headers,
+		})
 	}
-	return new Response(JSON.stringify(data), {
-		headers: {
-			"Content-Type": "application/json",
-			"Access-Control-Allow-Origin": "*",
-		},
+
+	const { board, workspace, error } = await createBoard(supabase, body.title, body.workspace_id);
+	if (error) {
+		return new Response(JSON.stringify({ error }), {
+			headers: headers,
+		})
+	}
+	if (!board || !workspace) {
+		return new Response(JSON.stringify({ error: Error("Error creating board") }), {
+			headers: headers,
+		})
+	}
+	const response: createBoardResponse = {
+		board: board,
+		workspace: workspace
+	}
+
+	return new Response(JSON.stringify(response), {
+		headers: headers,
 	});
 });
 
-/* ───────────────────── Retrieves workspaces by its id ───────────────────── */
-app.get("/:id", async (c) => {
+/* ───────────────────── Get board its id ───────────────────── */
+app.get("/:board_id", async (c) => {
 	const supabase = getSupabaseClient(c);
-	const id = c.req.param("id");
+	const board_id: number = parseInt(c.req.param("board_id"));
+	const { board, error } = await getBoardById(supabase, board_id)
 
-	const { data, error } = await supabase.from("boards").select().eq("id", id);
-
-	if (error) {
-		return handle_error(error);
-	}
-	return new Response(JSON.stringify(data), {
+	return new Response(JSON.stringify(error ? error.message : (board ? board : "Could not Find board")), {
 		headers: headers,
 	});
 });
 
 /* ─────────── Retrieves tasks associated with the specified board ────────── */
-app.get("/tasks/:board_id", async (c) => {
+app.get("/:board_id/tasks", async (c) => {
 	const supabase = getSupabaseClient(c);
-	const id = c.req.param("board_id");
+	const board_id: number = parseInt(c.req.param("board_id"));
+	const { board, error } = await getBoardById(supabase, board_id);
 
-	const { data: board_data, error: board_error } = await supabase
-		.from("boards")
-		.select()
-		.eq("id", id);
-	if (board_error) {
-		return handle_error(board_error);
+	if (error || !board) {
+		return new Response(JSON.stringify(error ? error.message : "Could not find board"), {
+			headers: headers,
+		});
 	}
 
-	const board: boardDto = board_data[0];
-	const tasks_IDs = board.tasks;
+	const tasks_ids = board.tasks;
 	const tasks = [];
 
-	for (const id of tasks_IDs) {
-		const task_data = await get_task_by_id(id, c);
+	for (const id of tasks_ids) {
+		const task_data = await getTaskById(id, supabase);
 		tasks.push(task_data);
 	}
 
@@ -75,14 +80,14 @@ app.get("/tasks/:board_id", async (c) => {
 });
 
 /* ───────────────────────────── Deletes a board ──────────────────────────── */
-app.delete("/:id", async (c) => {
+app.delete("/:board_id", async (c) => {
 	const supabase = getSupabaseClient(c);
-	const id = c.req.param("id");
+	const board_id: number = parseInt(c.req.param("board_id"));
 
 	const { data, error } = await supabase
 		.from("boards")
 		.delete()
-		.eq("id", id)
+		.eq("id", board_id)
 		.select();
 
 	if (error) {
@@ -136,7 +141,7 @@ export const createBoard = async (supabase: SupabaseClient, title: string, works
  * @param {number} board_id - The ID of the board to retrieve.
  * @return {Promise<{ board: boardDto | undefined; error: PostgrestError | unknown | undefined }>} - A promise that resolves to an object containing the retrieved board and any potential error.
  */
-export const getBoardById = async (supabase: SupabaseClient, board_id: number): Promise<{ board: boardDto | undefined; error: PostgrestError | unknown | undefined }> => {
+export const getBoardById = async (supabase: SupabaseClient, board_id: number): Promise<{ board: boardDto | undefined; error: PostgrestError | Error | null }> => {
 	const { data, error } = await supabase
 		.from("boards")
 		.select()
@@ -145,7 +150,7 @@ export const getBoardById = async (supabase: SupabaseClient, board_id: number): 
 		return { board: undefined, error }
 	}
 	const board: boardDto = data[0]
-	return { board, error: undefined };
+	return { board, error: null };
 }
 
 /**
@@ -178,5 +183,9 @@ export const addTaskToBoard = async (supabase: SupabaseClient, task_id: number, 
 	}
 	return { board: undefined, error: Error("board does not exist") }
 }
+
+
+
+
 
 export default app;

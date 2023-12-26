@@ -1,61 +1,42 @@
 import { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
-import { Context, Hono } from "hono";
+import { Hono } from "hono";
 import { addTaskToBoard } from "./boards";
+import { isAuthorizedDto } from "./types/authorization";
 import { boardDto } from "./types/boardDto";
-import { Task, taskDto } from "./types/taskDto";
-import { getSupabaseClient, handle_error, headers } from "./utils";
+import { createTaskDto, taskDto } from "./types/taskDto";
+import { getSupabaseClient, handle_error, headers, workspaceAuthorization } from "./utils";
+import { getWorkspaceById } from "./workspaces";
 
 const app = new Hono();
-
-type request_body = {
-	id: string;
-	board_id: number;
-	title: string;
-};
 
 app.get("/", (c) => c.text("Hello Hono!"));
 
 /* ─────────────────────────── Creates a new task ─────────────────────────── */
 app.post("/", async (c) => {
 	const supabase = getSupabaseClient(c);
-	const body: request_body = await c.req.json();
+	const body: createTaskDto = await c.req.json();
 
-	// add the task to the tasks Table
-	const { data: task_data, error } = await supabase
-		.from("tasks")
-		.insert({
-			title: body.title,
-			board: body.board_id,
+	const { isAuthorized, authorizationError } = await workspaceAuthorization(supabase, body.user_id, body.workspace_id);
+	if (authorizationError) {
+		return new Response(JSON.stringify({ error: authorizationError.message }), {
+			headers: headers,
 		})
-		.select();
+	}
+	if (!isAuthorized) {
+		return new Response(JSON.stringify({ error: Error("Not authorized") }), {
+			headers: headers,
+		})
+	}
+	const { task, board, error } = await createTask(supabase, body.title, body.board_id);
 	if (error) {
-		return handle_error(error);
-	}
-
-	// add the task to the tasks[] column in boards Table
-	const { data: board_data, error: board_error } = await supabase
-		.from("boards")
-		.select()
-		.eq("id", body.board_id);
-	if (board_error) {
-		return handle_error(board_error);
-	}
-	const board: boardDto = board_data[0];
-	const { data: update_data, error: update_error } = await supabase
-		.from("boards")
-		.update({
-			tasks: board.tasks
-				? [...board.tasks, task_data[0].id]
-				: [task_data[0].id],
+		return new Response(JSON.stringify(error), {
+			headers: headers,
 		})
-		.eq("id", body.board_id);
-	if (update_error) {
-		return handle_error(update_error);
 	}
-
-	return new Response(JSON.stringify(task_data), {
+	return new Response(JSON.stringify({ task, board }), {
 		headers: headers,
 	});
+
 });
 
 /* ───────── Retrieves all tasks associated with the specified board ──────── */
@@ -75,7 +56,7 @@ app.get("/board/:id", async (c) => {
 	const tasks = [];
 	const task_ids: number[] = data[0].tasks;
 	for (const task_id of task_ids) {
-		const task_data = await get_task_by_id(task_id, c);
+		const task_data = await getTaskById(task_id, supabase);
 		tasks.push(task_data);
 	}
 	return new Response(JSON.stringify(tasks), {
@@ -89,11 +70,10 @@ app.get("/board/:id", async (c) => {
  * @param {number} id - The ID of the task to retrieve.
  * @return {Promise<object>} - A Promise that resolves to the task data if successful, or rejects with an error if not.
  */
-export const get_task_by_id = async (
+export const getTaskById = async (
 	id: number,
-	c: Context,
+	supabase: SupabaseClient
 ): Promise<object> => {
-	const supabase = getSupabaseClient(c);
 	const { data, error } = await supabase.from("tasks").select().eq("id", id);
 	if (error) {
 		return handle_error(error);
@@ -138,6 +118,23 @@ export const createTask = async (supabase: SupabaseClient, title: string, board_
 		}
 	}
 	return { task: undefined, board: undefined, error: Error("board or task does not exist") }
+}
+
+const createTaskAuthorization = async (supabase: SupabaseClient, user_id: number, workspace_id: number): Promise<isAuthorizedDto> => {
+	const { workspace, error } = await getWorkspaceById(supabase, workspace_id)
+	if (error) {
+		return { isAuthorized: false, authorizationError: Error(`Error occurred while trying to find workspace with id ${workspace_id}`) }
+	}
+	if (!workspace) {
+		return { isAuthorized: false, authorizationError: Error(`could not find workspace with id ${workspace_id}`) }
+	}
+	if (workspace.owned_by === user_id) {
+		return { isAuthorized: true, authorizationError: null }
+	}
+	if (workspace.isSharable && workspace.collaborators && workspace.collaborators.includes(user_id)) {
+		return { isAuthorized: true, authorizationError: null }
+	}
+	return { isAuthorized: false, authorizationError: null }
 }
 
 
